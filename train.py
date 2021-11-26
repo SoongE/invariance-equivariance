@@ -1,31 +1,25 @@
 from __future__ import print_function
 
-import os
 import argparse
-import socket
+import os
 import time
-import sys
-from tqdm import tqdm
+
 import mkl
+import numpy as np
 import torch
-import torch.optim as optim
-import torch.nn as nn
 import torch.backends.cudnn as cudnn
-from torch.utils.data import DataLoader
-import torch.nn.functional as F
-from torch.autograd import Variable
-from dataset.transform_cfg import transforms_options, transforms_list
+import torch.nn as nn
+import torch.optim as optim
+from tqdm import tqdm
+
+import wandb
+from dataloader import get_dataloaders
+from dataset.transform_cfg import transforms_list
+from losses import simple_contrstive_loss
 from models import model_pool
 from models.util import create_model
-from util import adjust_learning_rate, accuracy, AverageMeter, rotrate_concat, Logger, generate_final_report
-from eval.meta_eval import meta_test, meta_test_tune
-from eval.cls_eval import validate
-import numpy as np
-import wandb
-from losses import simple_contrstive_loss
-from dataloader import get_dataloaders
+from util import adjust_learning_rate, accuracy, AverageMeter, rotrate_concat, generate_final_report
 
-os.environ["CUDA_VISIBLE_DEVICES"]
 mkl.set_num_threads(2)
 
 
@@ -53,7 +47,8 @@ def parse_option():
 
     # dataset
     parser.add_argument('--model', type=str, default='resnet12', choices=model_pool)
-    parser.add_argument('--dataset', type=str, default='miniImageNet', choices=['miniImageNet', 'tieredImageNet', 'CIFAR-FS', 'FC100'])
+    parser.add_argument('--dataset', type=str, default='miniImageNet',
+                        choices=['miniImageNet', 'tieredImageNet', 'CIFAR-FS', 'FC100'])
     parser.add_argument('--transform', type=str, default='A', choices=transforms_list)
     parser.add_argument('--use_trainval', type=bool, help='use trainval set')
 
@@ -63,25 +58,28 @@ def parse_option():
     # specify folder
     parser.add_argument('--model_path', type=str, default='save/', help='path to save model')
     parser.add_argument('--tb_path', type=str, default='tb/', help='path to tensorboard')
-    parser.add_argument('--data_root', type=str, default='/raid/data/IncrementLearn/imagenet/Datasets/MiniImagenet/', help='path to data root')
+    parser.add_argument('--data_root', type=str, default='/raid/data/IncrementLearn/imagenet/Datasets/MiniImagenet/',
+                        help='path to data root')
 
     # meta setting
     parser.add_argument('--n_test_runs', type=int, default=600, metavar='N', help='Number of test runs')
-    parser.add_argument('--n_ways', type=int, default=5, metavar='N', help='Number of classes for doing each classification run')
+    parser.add_argument('--n_ways', type=int, default=5, metavar='N',
+                        help='Number of classes for doing each classification run')
     parser.add_argument('--n_shots', type=int, default=1, metavar='N', help='Number of shots in test')
     parser.add_argument('--n_queries', type=int, default=15, metavar='N', help='Number of query in test')
-    parser.add_argument('--n_aug_support_samples', default=5, type=int, help='The number of augmented samples for each meta test sample')
+    parser.add_argument('--n_aug_support_samples', default=5, type=int,
+                        help='The number of augmented samples for each meta test sample')
     parser.add_argument('--test_batch_size', type=int, default=1, metavar='test_batch_size', help='Size of test batch)')
     parser.add_argument('-t', '--trial', type=str, default='1', help='the experiment id')
-    
-    #hyper parameters
+
+    # hyper parameters
     parser.add_argument('--gamma', type=float, default=1.0, help='loss cofficient for ssl loss')
     parser.add_argument('--contrast_temp', type=float, default=1.0, help='temperature for contrastive ssl loss')
     parser.add_argument('--membank_size', type=int, default=6400, help='temperature for contrastive ssl loss')
     parser.add_argument('--memfeature_size', type=int, default=64, help='temperature for contrastive ssl loss')
     parser.add_argument('--mvavg_rate', type=float, default=0.99, help='temperature for contrastive ssl loss')
     parser.add_argument('--trans', type=int, default=16, help='number of transformations')
-    
+
     opt = parser.parse_args()
 
     if opt.dataset == 'CIFAR-FS' or opt.dataset == 'FC100':
@@ -105,13 +103,14 @@ def parse_option():
     opt.lr_decay_epochs = list([])
     for it in iterations:
         opt.lr_decay_epochs.append(int(it))
-        
+
     tags = opt.tags.split(',')
     opt.tags = list([])
     for it in tags:
         opt.tags.append(it)
 
-    opt.model_name = '{}_{}_lr_{}_decay_{}_trans_{}'.format(opt.model, opt.dataset, opt.learning_rate, opt.weight_decay, opt.transform)
+    opt.model_name = '{}_{}_lr_{}_decay_{}_trans_{}'.format(opt.model, opt.dataset, opt.learning_rate, opt.weight_decay,
+                                                            opt.transform)
 
     if opt.cosine:
         opt.model_name = '{}_cosine'.format(opt.model_name)
@@ -130,25 +129,24 @@ def parse_option():
         os.makedirs(opt.save_folder)
 
     opt.n_gpu = torch.cuda.device_count()
-    
-    #extras
+
+    # extras
     opt.fresh_start = True
     return opt
 
 
 def main():
-
     opt = parse_option()
     wandb.init(project=opt.model_path.split("/")[-1], tags=opt.tags)
     wandb.config.update(opt)
     wandb.save('*.py')
     wandb.run.save()
-       
+
     train_loader, val_loader, meta_testloader, meta_valloader, n_cls, no_sample = get_dataloaders(opt)
     # model
     model = create_model(opt.model, n_cls, opt.dataset, n_trans=opt.trans, embd_sz=opt.memfeature_size)
     wandb.watch(model)
-    
+
     # optimizer
     if opt.adam:
         print("Adam")
@@ -175,7 +173,7 @@ def main():
     if opt.cosine:
         eta_min = opt.learning_rate * (opt.lr_decay_rate ** 3)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, opt.epochs, eta_min, -1)
-    
+
     MemBank = np.random.randn(no_sample, opt.memfeature_size)
     MemBank = torch.tensor(MemBank, dtype=torch.float).cuda()
     MemBankNorm = torch.norm(MemBank, dim=1, keepdim=True)
@@ -188,63 +186,64 @@ def main():
         else:
             adjust_learning_rate(epoch, opt, optimizer)
         print("==> training...")
-        
+
         time1 = time.time()
         train_acc, train_loss, MemBank = train(epoch, train_loader, model, criterion, optimizer, opt, MemBank)
         time2 = time.time()
         print('epoch {}, total time {:.2f}'.format(epoch, time2 - time1))
 
-        val_acc, val_acc_top5, val_loss = 0,0,0 #validate(val_loader, model, criterion, opt)
-        
-        #validate
+        val_acc, val_acc_top5, val_loss = 0, 0, 0  # validate(val_loader, model, criterion, opt)
+
+        # validate
         start = time.time()
-        meta_val_acc, meta_val_std = 0,0 #meta_test(model, meta_valloader)
+        meta_val_acc, meta_val_std = 0, 0  # meta_test(model, meta_valloader)
         test_time = time.time() - start
         print('Meta Val Acc : {:.4f}, Meta Val std: {:.4f}, Time: {:.1f}'.format(meta_val_acc, meta_val_std, test_time))
 
-        #evaluate
+        # evaluate
         start = time.time()
-        meta_test_acc, meta_test_std = 0,0 #meta_test(model, meta_testloader)
+        meta_test_acc, meta_test_std = 0, 0  # meta_test(model, meta_testloader)
         test_time = time.time() - start
-        print('Meta Test Acc: {:.4f}, Meta Test std: {:.4f}, Time: {:.1f}'.format(meta_test_acc, meta_test_std, test_time))
-        
+        print('Meta Test Acc: {:.4f}, Meta Test std: {:.4f}, Time: {:.1f}'.format(meta_test_acc, meta_test_std,
+                                                                                  test_time))
+
         # regular saving
-        if epoch % opt.save_freq == 0 or epoch==opt.epochs:
+        if epoch % opt.save_freq == 0 or epoch == opt.epochs:
             print('==> Saving...')
             state = {
                 'epoch': epoch,
                 'optimizer': optimizer.state_dict(),
                 'model': model.state_dict(),
-            }            
-            save_file = os.path.join(opt.save_folder, 'model_'+str(wandb.run.name)+'.pth')
+            }
+            save_file = os.path.join(opt.save_folder, 'model_' + str(wandb.run.name) + '.pth')
             torch.save(state, save_file)
-            
-            #wandb saving
+
+            # wandb saving
             torch.save(state, os.path.join(wandb.run.dir, "model.pth"))
 
-        wandb.log({'epoch': epoch, 
+        wandb.log({'epoch': epoch,
                    'Train Acc': train_acc,
-                   'Train Loss':train_loss,
+                   'Train Loss': train_loss,
                    'Val Acc': val_acc,
-                   'Val Loss':val_loss,
+                   'Val Loss': val_loss,
                    'Meta Test Acc': meta_test_acc,
                    'Meta Test std': meta_test_std,
                    'Meta Val Acc': meta_val_acc,
                    'Meta Val std': meta_val_std
-                  })
+                   })
 
-    #final report 
+    # final report
     print("GENERATING FINAL REPORT")
     generate_final_report(model, opt, wandb)
-    
-    #remove output.txt log file 
+
+    # remove output.txt log file
     output_log_file = os.path.join(wandb.run.dir, "output.log")
     if os.path.isfile(output_log_file):
         os.remove(output_log_file)
-    else:    ## Show an error ##
+    else:  ## Show an error ##
         print("Error: %s file not found" % output_log_file)
-        
-      
+
+
 def train(epoch, train_loader, model, criterion, optimizer, opt, MemBank):
     """One epoch training"""
     model.train()
@@ -272,10 +271,10 @@ def train(epoch, train_loader, model, criterion, optimizer, opt, MemBank):
 
             generated_data = rotrate_concat([input, input2, input3, input4])
             train_targets = target.repeat(opt.trans)
-            proxy_labels = torch.zeros(opt.trans*batch_size).cuda().long()
+            proxy_labels = torch.zeros(opt.trans * batch_size).cuda().long()
 
             for ii in range(opt.trans):
-                proxy_labels[ii*batch_size:(ii+1)*batch_size] = ii
+                proxy_labels[ii * batch_size:(ii + 1) * batch_size] = ii
 
             # ===================forward=====================
             _, (train_logit, eq_logit, inv_rep) = model(generated_data, inductive=True)
@@ -294,15 +293,17 @@ def train(epoch, train_loader, model, criterion, optimizer, opt, MemBank):
             inv_rep_0 = inv_rep[:batch_size, :]
             loss_inv = simple_contrstive_loss(mem_rep_of_batch_imgs, inv_rep_0, mn_arr, opt.contrast_temp)
             for ii in range(1, opt.trans):
-                loss_inv += simple_contrstive_loss(inv_rep_0, inv_rep[(ii*batch_size):((ii+1)*batch_size), :], mn_arr, opt.contrast_temp)
-            loss_inv = loss_inv/opt.trans
+                loss_inv += simple_contrstive_loss(inv_rep_0, inv_rep[(ii * batch_size):((ii + 1) * batch_size), :],
+                                                   mn_arr, opt.contrast_temp)
+            loss_inv = loss_inv / opt.trans
 
             loss = opt.gamma * (loss_eq + loss_inv) + loss_ce
-            
+
             acc1, acc5 = accuracy(train_logit, train_targets, topk=(1, 5))
+
             losses.update(loss.item(), input.size(0))
-            top1.update(acc1[0], input.size(0))
-            top5.update(acc5[0], input.size(0))
+            top1.update(acc1[0].item(), input.size(0))
+            top5.update(acc5[0].item(), input.size(0))
 
             # ===================update memory bank======================
             MemBankCopy = MemBank.clone().detach()
@@ -313,15 +314,15 @@ def train(epoch, train_loader, model, criterion, optimizer, opt, MemBank):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-          
+
             # ===================meters=====================
             batch_time.update(time.time() - end)
             end = time.time()
-            
-            pbar.set_postfix({"Acc@1":'{0:.2f}'.format(top1.avg.cpu().numpy()), 
-                              "Acc@5":'{0:.2f}'.format(top5.avg.cpu().numpy(),2), 
-                              "Loss" :'{0:.2f}'.format(losses.avg,2),
-                             })
+
+            pbar.set_postfix({"Acc@1": '{0:.2f}'.format(top1.avg),
+                              "Acc@5": '{0:.2f}'.format(top5.avg),
+                              "Loss": '{0:.2f}'.format(losses.avg),
+                              })
 
     print('Train_Acc@1 {top1.avg:.3f} Train_Acc@5 {top5.avg:.3f}'.format(top1=top1, top5=top5))
 

@@ -1,10 +1,11 @@
 from __future__ import absolute_import
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
-import matplotlib.pyplot as plt
-import os
-import sys
+import torch.nn.functional as F
+
 from dataloader import get_dataloaders
 
 
@@ -12,6 +13,7 @@ class LabelSmoothing(nn.Module):
     """
     NLL loss with label smoothing.
     """
+
     def __init__(self, smoothing=0.0):
         """
         Constructor for the LabelSmoothing module.
@@ -29,24 +31,26 @@ class LabelSmoothing(nn.Module):
         smooth_loss = -logprobs.mean(dim=-1)
         loss = self.confidence * nll_loss + self.smoothing * smooth_loss
         return loss.mean()
-    
+
 
 class BCEWithLogitsLoss(nn.Module):
     def __init__(self, weight=None, size_average=None, reduce=None, reduction='mean', pos_weight=None, num_classes=64):
         super(BCEWithLogitsLoss, self).__init__()
         self.num_classes = num_classes
-        self.criterion = nn.BCEWithLogitsLoss(weight=weight, 
-                                              size_average=size_average, 
-                                              reduce=reduce, 
+        self.criterion = nn.BCEWithLogitsLoss(weight=weight,
+                                              size_average=size_average,
+                                              reduce=reduce,
                                               reduction=reduction,
                                               pos_weight=pos_weight)
+
     def forward(self, input, target):
         target_onehot = F.one_hot(target, num_classes=self.num_classes)
         return self.criterion(input, target_onehot)
-    
+
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self):
         self.reset()
 
@@ -84,7 +88,7 @@ def accuracy(output, target, topk=(1,)):
 
         res = []
         for k in topk:
-            correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+            correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
@@ -92,25 +96,26 @@ def accuracy(output, target, topk=(1,)):
 def rotrate_concat(inputs):
     out = None
     for x in inputs:
-        x_90 = x.transpose(2,3).flip(2)
+        x_90 = x.transpose(2, 3).flip(2)
         x_180 = x.flip(2).flip(3)
-        x_270 = x.flip(2).transpose(2,3)
+        x_270 = x.flip(2).transpose(2, 3)
         if out is None:
-            out = torch.cat((x, x_90, x_180, x_270),0)
+            out = torch.cat((x, x_90, x_180, x_270), 0)
         else:
-            out = torch.cat((out, x, x_90, x_180, x_270),0)
+            out = torch.cat((out, x, x_90, x_180, x_270), 0)
     return out
 
-    
+
 class Logger(object):
     '''Save training process to log file with simple plot function.'''
-    def __init__(self, fpath, title=None, resume=False): 
+
+    def __init__(self, fpath, title=None, resume=False):
         self.file = None
         self.resume = resume
         self.title = '' if title == None else title
         if fpath is not None:
-            if resume: 
-                self.file = open(fpath, 'r') 
+            if resume:
+                self.file = open(fpath, 'r')
                 name = self.file.readline()
                 self.names = name.rstrip().split('\t')
                 self.numbers = {}
@@ -122,12 +127,12 @@ class Logger(object):
                     for i in range(0, len(numbers)):
                         self.numbers[self.names[i]].append(numbers[i])
                 self.file.close()
-                self.file = open(fpath, 'a')  
+                self.file = open(fpath, 'a')
             else:
                 self.file = open(fpath, 'w')
 
     def set_names(self, names):
-        if self.resume: 
+        if self.resume:
             pass
         # initialize numbers as empty list
         self.numbers = {}
@@ -139,7 +144,6 @@ class Logger(object):
         self.file.write('\n')
         self.file.flush()
 
-
     def append(self, numbers):
         assert len(self.names) == len(numbers), 'Numbers do not match names'
         for index, num in enumerate(numbers):
@@ -149,7 +153,7 @@ class Logger(object):
         self.file.write('\n')
         self.file.flush()
 
-    def plot(self, names=None):   
+    def plot(self, names=None):
         names = self.names if names == None else names
         numbers = self.numbers
         for _, name in enumerate(names):
@@ -157,35 +161,33 @@ class Logger(object):
             plt.plot(x, np.asarray(numbers[name]))
         plt.legend([self.title + '(' + name + ')' for name in names])
         plt.grid(True)
-        
 
     def close(self):
         if self.file is not None:
             self.file.close()
-            
-                   
+
+
 def generate_final_report(model, opt, wandb):
     from eval.meta_eval import meta_test
-    
+
     opt.n_shots = 1
     train_loader, val_loader, meta_testloader, meta_valloader, _, _ = get_dataloaders(opt)
-    
-    #validate
+
+    # validate
     meta_val_acc, meta_val_std = meta_test(model, meta_valloader)
-    
+
     meta_val_acc_feat, meta_val_std_feat = meta_test(model, meta_valloader, use_logit=False)
 
-    #evaluate
+    # evaluate
     meta_test_acc, meta_test_std = meta_test(model, meta_testloader)
-    
+
     meta_test_acc_feat, meta_test_std_feat = meta_test(model, meta_testloader, use_logit=False)
-        
+
     print('Meta Val Acc : {:.4f}, Meta Val std: {:.4f}'.format(meta_val_acc, meta_val_std))
     print('Meta Val Acc (feat): {:.4f}, Meta Val std (feat): {:.4f}'.format(meta_val_acc_feat, meta_val_std_feat))
     print('Meta Test Acc: {:.4f}, Meta Test std: {:.4f}'.format(meta_test_acc, meta_test_std))
     print('Meta Test Acc (feat): {:.4f}, Meta Test std (feat): {:.4f}'.format(meta_test_acc_feat, meta_test_std_feat))
-    
-    
+
     wandb.log({'Final Meta Test Acc @1': meta_test_acc,
                'Final Meta Test std @1': meta_test_std,
                'Final Meta Test Acc  (feat) @1': meta_test_acc_feat,
@@ -194,22 +196,21 @@ def generate_final_report(model, opt, wandb):
                'Final Meta Val std @1': meta_val_std,
                'Final Meta Val Acc   (feat) @1': meta_val_acc_feat,
                'Final Meta Val std   (feat) @1': meta_val_std_feat
-              })
+               })
 
-    
     opt.n_shots = 5
     train_loader, val_loader, meta_testloader, meta_valloader, _, _ = get_dataloaders(opt)
-    
-    #validate
+
+    # validate
     meta_val_acc, meta_val_std = meta_test(model, meta_valloader)
-    
+
     meta_val_acc_feat, meta_val_std_feat = meta_test(model, meta_valloader, use_logit=False)
 
-    #evaluate
+    # evaluate
     meta_test_acc, meta_test_std = meta_test(model, meta_testloader)
-    
+
     meta_test_acc_feat, meta_test_std_feat = meta_test(model, meta_testloader, use_logit=False)
-        
+
     print('Meta Val Acc : {:.4f}, Meta Val std: {:.4f}'.format(meta_val_acc, meta_val_std))
     print('Meta Val Acc (feat): {:.4f}, Meta Val std (feat): {:.4f}'.format(meta_val_acc_feat, meta_val_std_feat))
     print('Meta Test Acc: {:.4f}, Meta Test std: {:.4f}'.format(meta_test_acc, meta_test_std))
@@ -223,4 +224,4 @@ def generate_final_report(model, opt, wandb):
                'Final Meta Val std @5': meta_val_std,
                'Final Meta Val Acc   (feat) @5': meta_val_acc_feat,
                'Final Meta Val std   (feat) @5': meta_val_std_feat
-              })
+               })
