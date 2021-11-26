@@ -10,9 +10,9 @@ import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.optim as optim
-import wandb
 from tqdm import tqdm
 
+import wandb
 from dataloader import get_dataloaders
 from dataset.transform_cfg import transforms_list
 from losses import simple_contrstive_loss
@@ -177,6 +177,7 @@ def main():
     if opt.cosine:
         eta_min = opt.learning_rate * (opt.lr_decay_rate ** 3)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, opt.epochs, eta_min, -1)
+        # scheduler = LambdaLR(optimizer, lr_lambda=lambda epoch: 0.95 ** epoch)
 
     MemBank = np.random.randn(no_sample, opt.memfeature_size)
     MemBank = torch.tensor(MemBank, dtype=torch.float).cuda()
@@ -198,18 +199,18 @@ def main():
 
         val_acc, val_acc_top5, val_loss = 0, 0, 0  # validate(val_loader, model, criterion, opt)
 
-        # validate
-        start = time.time()
-        meta_val_acc, meta_val_std = 0, 0  # meta_test(model, meta_valloader)
-        test_time = time.time() - start
-        print('Meta Val Acc : {:.4f}, Meta Val std: {:.4f}, Time: {:.1f}'.format(meta_val_acc, meta_val_std, test_time))
-
-        # evaluate
-        start = time.time()
-        meta_test_acc, meta_test_std = 0, 0  # meta_test(model, meta_testloader)
-        test_time = time.time() - start
-        print('Meta Test Acc: {:.4f}, Meta Test std: {:.4f}, Time: {:.1f}'.format(meta_test_acc, meta_test_std,
-                                                                                  test_time))
+        # # validate
+        # start = time.time()
+        # meta_val_acc, meta_val_std = 0, 0  # meta_test(model, meta_valloader)
+        # test_time = time.time() - start
+        # print('Meta Val Acc : {:.4f}, Meta Val std: {:.4f}, Time: {:.1f}'.format(meta_val_acc, meta_val_std, test_time))
+        #
+        # # evaluate
+        # start = time.time()
+        # meta_test_acc, meta_test_std = 0, 0  # meta_test(model, meta_testloader)
+        # test_time = time.time() - start
+        # print('Meta Test Acc: {:.4f}, Meta Test std: {:.4f}, Time: {:.1f}'.format(meta_test_acc, meta_test_std,
+        #                                                                           test_time))
 
         # regular saving
         if epoch % opt.save_freq == 0 or epoch == opt.epochs:
@@ -230,10 +231,6 @@ def main():
                    'Train Loss': train_loss,
                    'Val Acc': val_acc,
                    'Val Loss': val_loss,
-                   'Meta Test Acc': meta_test_acc,
-                   'Meta Test std': meta_test_std,
-                   'Meta Val Acc': meta_val_acc,
-                   'Meta Val std': meta_val_std
                    })
 
     # final report
