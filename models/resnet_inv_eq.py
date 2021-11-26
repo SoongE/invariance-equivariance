@@ -181,26 +181,31 @@ class ResNet(nn.Module):
 
         self.bp_conv = nn.Conv2d(640, 128, 1)
         self.bp_bn = nn.BatchNorm2d(128)
+
+        self.linear_b = nn.Linear(16384, 16384)
+        self.bn_b = nn.BatchNorm1d(16384)
+        self.relu_b = nn.ReLU()
+
         in_feature = 640 if avg_pool else 16384
         if self.num_classes > 0:
             self.classifier = nn.Linear(in_feature, self.num_classes)
             self.eq_head = nn.Sequential(
-                nn.Linear(in_feature, in_feature),
-                nn.BatchNorm1d(in_feature),
+                nn.Linear(in_feature, 640),
+                nn.BatchNorm1d(640),
                 nn.ReLU(inplace=True),
-                nn.Linear(in_feature, in_feature),
-                nn.BatchNorm1d(in_feature),
+                nn.Linear(640, 640),
+                nn.BatchNorm1d(640),
                 nn.ReLU(inplace=True),
-                nn.Linear(in_feature, no_trans)
+                nn.Linear(640, no_trans)
             )
             self.inv_head = nn.Sequential(
-                nn.Linear(in_feature, in_feature),
-                nn.BatchNorm1d(in_feature),
+                nn.Linear(in_feature, 640),
+                nn.BatchNorm1d(640),
                 nn.ReLU(inplace=True),
-                nn.Linear(in_feature, in_feature),
-                nn.BatchNorm1d(in_feature),
+                nn.Linear(640, 640),
+                nn.BatchNorm1d(640),
                 nn.ReLU(inplace=True),
-                nn.Linear(in_feature, embd_size)
+                nn.Linear(640, embd_size)
             )
 
     def _make_layer(self, block, n_block, planes, stride=1, drop_rate=0.0, drop_block=False, block_size=1):
@@ -245,7 +250,11 @@ class ResNet(nn.Module):
         else:
             x = self.bp_conv(x)
             x = self.bp_bn(x)
+            # imp left
+            # x = torch.nn.functional.relu(x)
             x = self_bilinear_pooling(x)
+            # imp right
+            x = self.relu_b(self.bn_b(self.linear_b(x)))
 
         x = x.view(x.size(0), -1)
         feat = x
