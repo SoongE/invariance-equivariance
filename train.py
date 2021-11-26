@@ -10,9 +10,9 @@ import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.optim as optim
+import wandb
 from tqdm import tqdm
 
-import wandb
 from dataloader import get_dataloaders
 from dataset.transform_cfg import transforms_list
 from losses import simple_contrstive_loss
@@ -46,7 +46,10 @@ def parse_option():
     parser.add_argument('--tags', type=str, default="gen0, ssl", help='add tags for the experiment')
 
     # dataset
+
     parser.add_argument('--model', type=str, default='resnet12', choices=model_pool)
+    parser.add_argument('--no_avgpool', action='store_false')
+    parser.set_defaults(no_avgpool=True)
     parser.add_argument('--dataset', type=str, default='miniImageNet',
                         choices=['miniImageNet', 'tieredImageNet', 'CIFAR-FS', 'FC100'])
     parser.add_argument('--transform', type=str, default='A', choices=transforms_list)
@@ -137,14 +140,15 @@ def parse_option():
 
 def main():
     opt = parse_option()
-    wandb.init(project=opt.model_path.split("/")[-1], tags=opt.tags)
+    wandb.init(project="Inv-Equ", tags=opt.tags)
     wandb.config.update(opt)
     wandb.save('*.py')
     wandb.run.save()
 
     train_loader, val_loader, meta_testloader, meta_valloader, n_cls, no_sample = get_dataloaders(opt)
     # model
-    model = create_model(opt.model, n_cls, opt.dataset, n_trans=opt.trans, embd_sz=opt.memfeature_size)
+    model = create_model(opt.model, n_cls, opt.dataset, avg_pool=opt.no_avgpool, n_trans=opt.trans,
+                         embd_sz=opt.memfeature_size)
     wandb.watch(model)
 
     # optimizer
