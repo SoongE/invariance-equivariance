@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Bernoulli
+from models.compact_bilinear_pooling import CompactBilinearPooling
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -185,6 +186,7 @@ class ResNet(nn.Module):
         self.linear_b = nn.Linear(16384, 16384)
         self.bn_b = nn.BatchNorm1d(16384)
         self.relu_b = nn.ReLU()
+        self.cbp = CompactBilinearPooling(640,640,16384)
 
         in_feature = 640 if avg_pool else 16384
         if self.num_classes > 0:
@@ -248,12 +250,15 @@ class ResNet(nn.Module):
         if self.keep_avg_pool:
             x = self.avgpool(x)
         else:
-            x = self.bp_conv(x)
-            x = self.bp_bn(x)
-            # imp left
-            # x = torch.nn.functional.relu(x)
-            x = self_bilinear_pooling(x)
-            # imp right
+            # x = self.bp_conv(x)
+            # x = self.bp_bn(x)
+            # # imp XX
+            # # x = torch.nn.functional.relu(x)
+            # x = self_bilinear_pooling(x)
+            # # imp right
+            # x = self.relu_b(self.bn_b(self.linear_b(x)))
+
+            x = self.cbp(x,x)
             x = self.relu_b(self.bn_b(self.linear_b(x)))
 
         x = x.view(x.size(0), -1)
