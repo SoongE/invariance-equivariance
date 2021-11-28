@@ -1,7 +1,9 @@
-import torch.nn as nn
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Bernoulli
+
+from models.self_bilinear_pooling import self_bilinear_pooling
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -163,12 +165,19 @@ class ResNet(nn.Module):
                                        stride=2, drop_rate=drop_rate, drop_block=True, block_size=dropblock_size)
         self.layer4 = self._make_layer(block, n_blocks[3], 640,
                                        stride=2, drop_rate=drop_rate, drop_block=True, block_size=dropblock_size)
-        if avg_pool:
-            self.avgpool = nn.AdaptiveAvgPool2d(1)
+
         self.keep_prob = keep_prob
         self.keep_avg_pool = avg_pool
         self.dropout = nn.Dropout(p=1 - self.keep_prob, inplace=False)
         self.drop_rate = drop_rate
+
+        self.bp_conv = nn.Conv2d(640, 128, 1)
+        self.bp_bn = nn.BatchNorm2d(128)
+        self.bp_relu = nn.ReLU(inplace=True)
+
+        self.linear_b = nn.Linear(16384, 16384)
+        self.bn_b = nn.BatchNorm1d(16384)
+        self.relu_b = nn.ReLU(inplace=True)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -178,10 +187,11 @@ class ResNet(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
         self.num_classes = num_classes
+        in_feature = 16384
         if self.num_classes > 0:
-            self.classifier = nn.Linear(640, self.num_classes)
+            self.classifier = nn.Linear(in_feature, self.num_classes)
             self.eq_head = nn.Sequential(
-                nn.Linear(640, 640),
+                nn.Linear(in_feature, 640),
                 nn.BatchNorm1d(640),
                 nn.ReLU(inplace=True),
                 nn.Linear(640, 640),
@@ -190,7 +200,7 @@ class ResNet(nn.Module):
                 nn.Linear(640, no_trans)
             )
             self.inv_head = nn.Sequential(
-                nn.Linear(640, 640),
+                nn.Linear(in_feature, 640),
                 nn.BatchNorm1d(640),
                 nn.ReLU(inplace=True),
                 nn.Linear(640, 640),
@@ -235,8 +245,14 @@ class ResNet(nn.Module):
         f2 = x
         x = self.layer4(x)
         f3 = x
-        if self.keep_avg_pool:
-            x = self.avgpool(x)
+
+        x = self.bp_conv(x)
+        x = self.bp_bn(x)
+        x = self.bp_relu(x)
+
+        x = self_bilinear_pooling(x)
+        x = self.relu_b(self.bn_b(self.linear_b(x)))
+
         x = x.view(x.size(0), -1)
         feat = x
         xx = self.classifier(x)
@@ -253,106 +269,8 @@ class ResNet(nn.Module):
             return xx
 
 
-def resnet12(keep_prob=1.0, avg_pool=False, **kwargs):
+def bp1(keep_prob=1.0, avg_pool=False, **kwargs):
     """Constructs a ResNet-12 model.
     """
     model = ResNet(BasicBlock, [1, 1, 1, 1], keep_prob=keep_prob, avg_pool=avg_pool, **kwargs)
     return model
-
-
-def resnet18(keep_prob=1.0, avg_pool=False, **kwargs):
-    """Constructs a ResNet-18 model.
-    """
-    model = ResNet(BasicBlock, [1, 1, 2, 2], keep_prob=keep_prob, avg_pool=avg_pool, **kwargs)
-    return model
-
-
-def resnet24(keep_prob=1.0, avg_pool=False, **kwargs):
-    """Constructs a ResNet-24 model.
-    """
-    model = ResNet(BasicBlock, [2, 2, 2, 2], keep_prob=keep_prob, avg_pool=avg_pool, **kwargs)
-    return model
-
-
-def resnet50(keep_prob=1.0, avg_pool=False, **kwargs):
-    """Constructs a ResNet-50 model.
-    indeed, only (3 + 4 + 6 + 3) * 3 + 1 = 49 layers
-    """
-    model = ResNet(BasicBlock, [3, 4, 6, 3], keep_prob=keep_prob, avg_pool=avg_pool, **kwargs)
-    return model
-
-
-def resnet101(keep_prob=1.0, avg_pool=False, **kwargs):
-    """Constructs a ResNet-101 model.
-    indeed, only (3 + 4 + 23 + 3) * 3 + 1 = 100 layers
-    """
-    model = ResNet(BasicBlock, [3, 4, 23, 3], keep_prob=keep_prob, avg_pool=avg_pool, **kwargs)
-    return model
-
-
-def seresnet12(keep_prob=1.0, avg_pool=False, **kwargs):
-    """Constructs a ResNet-12 model.
-    """
-    model = ResNet(BasicBlock, [1, 1, 1, 1], keep_prob=keep_prob, avg_pool=avg_pool, use_se=True, **kwargs)
-    return model
-
-
-def seresnet18(keep_prob=1.0, avg_pool=False, **kwargs):
-    """Constructs a ResNet-18 model.
-    """
-    model = ResNet(BasicBlock, [1, 1, 2, 2], keep_prob=keep_prob, avg_pool=avg_pool, use_se=True, **kwargs)
-    return model
-
-
-def seresnet24(keep_prob=1.0, avg_pool=False, **kwargs):
-    """Constructs a ResNet-24 model.
-    """
-    model = ResNet(BasicBlock, [2, 2, 2, 2], keep_prob=keep_prob, avg_pool=avg_pool, use_se=True, **kwargs)
-    return model
-
-
-def seresnet50(keep_prob=1.0, avg_pool=False, **kwargs):
-    """Constructs a ResNet-50 model.
-    indeed, only (3 + 4 + 6 + 3) * 3 + 1 = 49 layers
-    """
-    model = ResNet(BasicBlock, [3, 4, 6, 3], keep_prob=keep_prob, avg_pool=avg_pool, use_se=True, **kwargs)
-    return model
-
-
-def seresnet101(keep_prob=1.0, avg_pool=False, **kwargs):
-    """Constructs a ResNet-101 model.
-    indeed, only (3 + 4 + 23 + 3) * 3 + 1 = 100 layers
-    """
-    model = ResNet(BasicBlock, [3, 4, 23, 3], keep_prob=keep_prob, avg_pool=avg_pool, use_se=True, **kwargs)
-    return model
-
-
-if __name__ == '__main__':
-    import argparse
-
-    parser = argparse.ArgumentParser('argument for training')
-    parser.add_argument('--model', type=str, choices=['resnet12', 'resnet18', 'resnet24', 'resnet50', 'resnet101',
-                                                      'seresnet12', 'seresnet18', 'seresnet24', 'seresnet50',
-                                                      'seresnet101'])
-    args = parser.parse_args()
-
-    model_dict = {
-        'resnet12': resnet12,
-        'resnet18': resnet18,
-        'resnet24': resnet24,
-        'resnet50': resnet50,
-        'resnet101': resnet101,
-        'seresnet12': seresnet12,
-        'seresnet18': seresnet18,
-        'seresnet24': seresnet24,
-        'seresnet50': seresnet50,
-        'seresnet101': seresnet101,
-    }
-
-    model = model_dict[args.model](avg_pool=True, drop_rate=0.1, dropblock_size=5, num_classes=64)
-    data = torch.randn(2, 3, 84, 84)
-    model = model.cuda()
-    data = data.cuda()
-    feat, logit = model(data, is_feat=True)
-    print(feat[-1].shape)
-    print(logit.shape)
