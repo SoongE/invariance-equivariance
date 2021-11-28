@@ -3,6 +3,7 @@ from __future__ import print_function
 import argparse
 import os
 import time
+import warnings
 
 import mkl
 import numpy as np
@@ -16,9 +17,10 @@ import wandb
 from dataloader import get_dataloaders
 from dataset.transform_cfg import transforms_list
 from losses import simple_contrstive_loss
-from models import model_pool
-from models.util import create_model
+from models import create_model
 from util import adjust_learning_rate, accuracy, AverageMeter, rotrate_concat, generate_final_report
+
+warnings.filterwarnings("ignore")
 
 mkl.set_num_threads(2)
 
@@ -46,11 +48,9 @@ def parse_option():
     parser.add_argument('--tags', type=str, default="gen0, ssl", help='add tags for the experiment')
 
     # dataset
-
-    parser.add_argument('--model', type=str, default='resnet12', choices=model_pool)
-    parser.add_argument('--no_avgpool', action='store_false')
-    parser.set_defaults(no_avgpool=True)
-    parser.add_argument('--dataset', type=str, default='miniImageNet',
+    parser.add_argument('--name', type=str, default='NONAME')
+    parser.add_argument('--model', type=str, default='resnet12')
+    parser.add_argument('--dataset', type=str, default='CIFAR-FS',
                         choices=['miniImageNet', 'tieredImageNet', 'CIFAR-FS', 'FC100'])
     parser.add_argument('--transform', type=str, default='A', choices=transforms_list)
     parser.add_argument('--use_trainval', type=bool, help='use trainval set')
@@ -61,8 +61,7 @@ def parse_option():
     # specify folder
     parser.add_argument('--model_path', type=str, default='save/', help='path to save model')
     parser.add_argument('--tb_path', type=str, default='tb/', help='path to tensorboard')
-    parser.add_argument('--data_root', type=str, default='/raid/data/IncrementLearn/imagenet/Datasets/MiniImagenet/',
-                        help='path to data root')
+    parser.add_argument('--data_root', type=str, default='/shared/FSL', help='path to data root')
 
     # meta setting
     parser.add_argument('--n_test_runs', type=int, default=600, metavar='N', help='Number of test runs')
@@ -141,14 +140,14 @@ def parse_option():
 def main():
     opt = parse_option()
     wandb.init(project="Inv-Equ", tags=opt.tags)
+    wandb.run.name = opt.name
     wandb.config.update(opt)
     wandb.save('*.py')
     wandb.run.save()
 
     train_loader, val_loader, meta_testloader, meta_valloader, n_cls, no_sample = get_dataloaders(opt)
     # model
-    model = create_model(opt.model, n_cls, opt.dataset, avg_pool=opt.no_avgpool, n_trans=opt.trans,
-                         embd_sz=opt.memfeature_size)
+    model = create_model(opt.model, n_cls, opt.dataset, n_trans=opt.trans, embd_sz=opt.memfeature_size)
     wandb.watch(model)
 
     # optimizer
@@ -226,11 +225,10 @@ def main():
             # wandb saving
             torch.save(state, os.path.join(wandb.run.dir, "model.pth"))
 
-        wandb.log({'epoch': epoch,
-                   'Train Acc': train_acc,
+        wandb.log({'Train Acc': train_acc,
                    'Train Loss': train_loss,
-                   'Val Acc': val_acc,
-                   'Val Loss': val_loss,
+                   # 'Val Acc': val_acc,
+                   # 'Val Loss': val_loss,
                    })
 
     # final report

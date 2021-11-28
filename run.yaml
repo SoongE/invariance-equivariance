@@ -6,5 +6,9 @@ windows:
     #        - export project_name=YourProjectName
     #        - export model_name=bp
     panes:
-      - CUDA_VISIBLE_DEVICES=6 python train.py --model resnet12 --model_path save --dataset CIFAR-FS --data_root /shared/FSL --n_aug_support_samples 5 --n_ways 5 --n_shots 1 --epochs 65 --lr_decay_epochs 60 --gamma 1.0 --contrast_temp 1.0 --mvavg_rate 0.99 --memfeature_size 64 --batch_size 64 --tags CIFAR-FS,INV_EQ
-      - CUDA_VISIBLE_DEVICES=7 python train.py --model resnet12 --model_path save --dataset CIFAR-FS --data_root /shared/FSL --n_aug_support_samples 5 --n_ways 5 --n_shots 1 --epochs 65 --lr_decay_epochs 60 --gamma 1.0 --contrast_temp 1.0 --mvavg_rate 0.99 --memfeature_size 64 --batch_size 64 --tags CIFAR-FS,INV_EQ --no_avgpool
+      - CUDA_VISIBLE_DEVICES=2 python train.py --tags CIFAR-FS,INV_EQ --model bp1 --name bp1
+      - CUDA_VISIBLE_DEVICES=4 python train.py --tags CIFAR-FS,INV_EQ --model bp2 --name bp2
+      - CUDA_VISIBLE_DEVICES=6 python train.py --tags CIFAR-FS,INV_EQ --model bp3 --name bp3
+      - CUDA_VISIBLE_DEVICES=8 python train.py --tags CIFAR-FS,INV_EQ --model cbp1 --name cbp1
+      - CUDA_VISIBLE_DEVICES=9 python train.py --tags CIFAR-FS,INV_EQ --model cbp2 --name cbp2
+      - CUDA_VISIBLE_DEVICES=7 python train.py --tags CIFAR-FS,INV_EQ --model resnet12 --name resnet12
