@@ -1,20 +1,22 @@
 from __future__ import print_function
 
 import argparse
-import mkl
-import numpy as np
 import os
 import time
+import warnings
+
+import mkl
+import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.optim as optim
-import warnings
 from tqdm import tqdm
 
 import wandb
 from dataloader import get_dataloaders
 from dataset.transform_cfg import transforms_list
+from eval.meta_eval import meta_test
 from losses import simple_contrstive_loss
 from models import create_model
 from util import adjust_learning_rate, accuracy, AverageMeter, rotrate_concat, generate_final_report
@@ -199,13 +201,13 @@ def main():
 
         # # validate
         # start = time.time()
-        # meta_val_acc, meta_val_std = 0, 0  # meta_test(model, meta_valloader)
+        meta_val_acc, meta_val_std = meta_test(model, meta_valloader)
         # test_time = time.time() - start
         # print('Meta Val Acc : {:.4f}, Meta Val std: {:.4f}, Time: {:.1f}'.format(meta_val_acc, meta_val_std, test_time))
         #
         # # evaluate
         # start = time.time()
-        # meta_test_acc, meta_test_std = 0, 0  # meta_test(model, meta_testloader)
+        meta_test_acc, meta_test_std = meta_test(model, meta_testloader)
         # test_time = time.time() - start
         # print('Meta Test Acc: {:.4f}, Meta Test std: {:.4f}, Time: {:.1f}'.format(meta_test_acc, meta_test_std,
         #                                                                           test_time))
@@ -226,8 +228,8 @@ def main():
 
         wandb.log({'Train Acc': train_acc,
                    'Train Loss': train_loss,
-                   # 'Val Acc': val_acc,
-                   # 'Val Loss': val_loss,
+                   'Val Acc': meta_val_acc,
+                   'Test Acc': meta_test_acc,
                    })
 
     # final report

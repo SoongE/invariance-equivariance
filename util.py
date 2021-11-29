@@ -188,10 +188,10 @@ def generate_final_report(model, opt, wandb):
     print('Meta Test Acc: {:.4f}, Meta Test std: {:.4f}'.format(meta_test_acc, meta_test_std))
     print('Meta Test Acc (feat): {:.4f}, Meta Test std (feat): {:.4f}'.format(meta_test_acc_feat, meta_test_std_feat))
 
-    wandb.log({'Meta Test Acc @1': meta_test_acc,
-               'Meta Test Acc  (feat) @1': meta_test_acc_feat,
-               'Meta Val Acc @1': meta_val_acc,
-               'Meta Val Acc   (feat) @1': meta_val_acc_feat,
+    wandb.log({'Final Meta Test Acc @1': meta_test_acc,
+               'Final Meta Test Acc  (feat) @1': meta_test_acc_feat,
+               'Final Meta Val Acc @1': meta_val_acc,
+               'Final Meta Val Acc   (feat) @1': meta_val_acc_feat,
                })
 
     opt.n_shots = 5

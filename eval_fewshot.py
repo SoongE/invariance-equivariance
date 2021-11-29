@@ -87,7 +87,6 @@ def parse_option():
 
 
 def main():
-
     opt = parse_option()
 
     opt.n_test_runs = 600
