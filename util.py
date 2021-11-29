@@ -213,11 +213,17 @@ def generate_final_report(model, opt, wandb):
     print('Meta Test Acc (feat): {:.4f}, Meta Test std (feat): {:.4f}'.format(meta_test_acc_feat, meta_test_std_feat))
 
     wandb.log({'Final Meta Test Acc @5': meta_test_acc,
-               'Final Meta Test std @5': meta_test_std,
                'Final Meta Test Acc  (feat) @5': meta_test_acc_feat,
-               'Final Meta Test std  (feat) @5': meta_test_std_feat,
                'Final Meta Val Acc @5': meta_val_acc,
-               'Final Meta Val std @5': meta_val_std,
                'Final Meta Val Acc   (feat) @5': meta_val_acc_feat,
-               'Final Meta Val std   (feat) @5': meta_val_std_feat
                })
+
+    # wandb.log({'Final Meta Test Acc @5': meta_test_acc,
+    #            'Final Meta Test std @5': meta_test_std,
+    #            'Final Meta Test Acc  (feat) @5': meta_test_acc_feat,
+    #            'Final Meta Test std  (feat) @5': meta_test_std_feat,
+    #            'Final Meta Val Acc @5': meta_val_acc,
+    #            'Final Meta Val std @5': meta_val_std,
+    #            'Final Meta Val Acc   (feat) @5': meta_val_acc_feat,
+    #            'Final Meta Val std   (feat) @5': meta_val_std_feat
+    #            })

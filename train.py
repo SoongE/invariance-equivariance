@@ -1,16 +1,15 @@
 from __future__ import print_function
 
 import argparse
-import os
-import time
-import warnings
-
 import mkl
 import numpy as np
+import os
+import time
 import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.optim as optim
+import warnings
 from tqdm import tqdm
 
 import wandb
@@ -139,7 +138,7 @@ def parse_option():
 
 def main():
     opt = parse_option()
-    wandb.init(project="Inv-Equ", tags=opt.tags)
+    wandb.init(project="Inv-Equ2", tags=opt.tags)
     wandb.run.name = opt.name
     wandb.config.update(opt)
     wandb.save('*.py')
