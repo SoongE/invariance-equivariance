@@ -1,4 +1,4 @@
-session_name: inv-equ2
+session_name: inv-equ
 windows:
   - window_name: window
     layout: tiled
@@ -6,9 +6,5 @@ windows:
     #        - export project_name=YourProjectName
     #        - export model_name=bp
     panes:
-      - CUDA_VISIBLE_DEVICES=2 python train.py --tags CIFAR-FS,INV_EQ --model bp1 --name bp1 --adam
-      - CUDA_VISIBLE_DEVICES=4 python train.py --tags CIFAR-FS,INV_EQ --model bp2 --name bp2 --adam
-      - CUDA_VISIBLE_DEVICES=6 python train.py --tags CIFAR-FS,INV_EQ --model bp3 --name bp3 --adam
-      - CUDA_VISIBLE_DEVICES=8 python train.py --tags CIFAR-FS,INV_EQ --model cbp1 --name cbp1 --adam
-      - CUDA_VISIBLE_DEVICES=9 python train.py --tags CIFAR-FS,INV_EQ --model cbp2 --name cbp2 --adam
-      - CUDA_VISIBLE_DEVICES=7 python train.py --tags CIFAR-FS,INV_EQ --model resnet12 --name resnet12 --adam
+      - CUDA_VISIBLE_DEVICES=8 python train.py --tags CIFAR-FS,INV_EQ --model bp2 --name bp2
+      - CUDA_VISIBLE_DEVICES=9 python train.py --tags CIFAR-FS,INV_EQ --model resnet12 --name resnet12

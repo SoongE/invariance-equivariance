@@ -1,19 +1,18 @@
 from __future__ import print_function
 
 import argparse
-import os
-import time
-import warnings
-
 import mkl
 import numpy as np
+import os
+import time
 import torch
 import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.optim as optim
+import wandb
+import warnings
 from tqdm import tqdm
 
-import wandb
 from dataloader import get_dataloaders
 from dataset.transform_cfg import transforms_list
 from eval.meta_eval import meta_test
@@ -140,10 +139,8 @@ def parse_option():
 
 def main():
     opt = parse_option()
-    wandb.init(project="Inv-Equ2", tags=opt.tags)
-    wandb.run.name = opt.name
+    wandb.init(project="Inv-Equ", tags=opt.tags, name=opt.name)
     wandb.config.update(opt)
-    wandb.save('*.py')
     wandb.run.save()
 
     train_loader, val_loader, meta_testloader, meta_valloader, n_cls, no_sample = get_dataloaders(opt)
